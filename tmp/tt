@@ -1,0 +1,83 @@
+#!/bin/bash
+# 2010-08-12 
+AUTHOR="hello use it try it"
+NAME=$(basename $0)
+VERSION="4.3.0.37"
+DESC="Front-end loader to start Skype with multiple saved passwords."
+
+# defaults
+PASSWORD_FILE="$HOME/.Skype/passwords"
+MIN_HEIGHT=400
+MAX_HEIGHT=700
+WIDTH=300
+
+IFS=' 
+	'
+
+die() {
+	OUTPUT=$@
+	[ -n "$OUTPUT" ] && printf "$OUTPUT\n" >&1
+	exit 1
+}
+
+VersionAndExit() {
+	printf "$NAME version $VERSION, by $AUTHOR\n"
+	exit 0
+}
+
+UsageAndExit() {
+	if [ -n "$2" ] ; then printf "$2\n\n" ; fi
+	printf "\
+$DESC\n\
+\n\
+Usage: $NAME [options] [username]\n\
+Options:\n\
+  -h   show this help\n\
+  -V   display version\n\
+"
+	exit $1
+}
+
+# Check prerequisites
+which skype > /dev/null || NOTFOUND="$NOTFOUND skype"
+[ -n "$NOTFOUND" ] && die "Please install:$NOTFOUND"
+
+while getopts ":hV" options; do
+   case $options in
+      h ) UsageAndExit 0;;
+      V ) VersionAndExit 0;;
+      * ) UsageAndExit 1 "Option unknown: -$OPTARG";;
+   esac
+done
+
+# Clear $@ of switches
+shift $(($OPTIND - 1))
+USERNAME="$1"
+
+if [ -z "$USERNAME" ] ; then
+   USERLIST=$(cat $PASSWORD_FILE | grep -v '^#' | awk '{print $1}')
+
+   HEIGHT=$((114 + $(echo $USERLIST | wc -w)*26))
+   if [ "$HEIGHT" -lt "$MIN_HEIGHT" ] ; then
+      HEIGHT=$MIN_HEIGHT
+   elif [ "$HEIGHT" -gt "$MAX_HEIGHT" ] ; then
+      HEIGHT=$MAX_HEIGHT
+   fi
+
+   USERNAME=$(zenity --window-icon /usr/share/icons/skype.png --height $HEIGHT --width $WIDTH --title 'Skype FE' --list --text 'Please select a Skype username:' --column host $USERLIST)
+fi
+
+if [ -z "$USERNAME" ] ; then
+   UsageAndExit 1
+fi
+
+# Find username/password pair
+PASSWORD=$(grep -m 1 -i $USERNAME $PASSWORD_FILE | awk '{print $1,$2}')
+
+if [ -z "$PASSWORD" ] ; then
+   UsageAndExit 1 "$USERNAME not found in $PASSWORD_FILE"
+fi
+
+#echo "$PASSWORD" | skype-wrapper --pipelogin
+#echo "$PASSWORD" | skype --pipelogin
+echo  "$PASSWORD" | skype --pipelogin --secondary 
